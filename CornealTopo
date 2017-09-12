@@ -1,0 +1,345 @@
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+/*
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Optimal_transportation_reconstruction_2.h>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <iterator>
+#include <vector>
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef K::FT                                               FT;
+typedef K::Point_2                                          Point;
+typedef CGAL::Optimal_transportation_reconstruction_2<K>    Otr_2;
+
+*/
+using namespace cv;
+using namespace std;
+
+Mat src; Mat src_gray;
+int thresh = 200;
+int max_thresh = 500;
+RNG rng(12345);
+float radius=0;
+Point2f center ;
+void onMouse( int event, int x, int y, int, void* );
+Mat drawing;
+Mat erosion_dst, dilation_dst;
+
+int erosion_elem = 2;
+int erosion_size = 5;
+int dilation_elem = 2;
+int dilation_size = 0;
+int const max_elem = 2;
+int const max_kernel_size = 21;
+
+/** Function Headers */
+void Erosion( int, void* );
+void Dilation( int, void* );
+
+/// Function header
+void thresh_callback(int, void* );
+
+/** @function main */
+int main( int argc, char** argv )
+{
+  /// Load source image and convert it to gray
+  //src = imread( argv[1], 1 );
+  
+src = imread( "4.jpg", 1);
+if(! src.data )                              // Check for invalid input
+    {
+        cout <<  "Could not open or find the image" << std::endl ;
+        return -1;}
+
+ 
+
+  /// Convert image to gray and blur it
+  cvtColor( src, src_gray, CV_BGR2GRAY );
+  /*Mat frame =src_gray;
+  Mat image;
+  GaussianBlur(frame, image, cv::Size(0, 0), 3);
+addWeighted(frame, 10.0, image, -2.5, 0, image);
+  src_gray=image;
+ // blur( src_gray, src_gray, Size(1,1) );
+*/
+  /// Create Window
+  //char* source_window = "Source";
+  namedWindow( "Source", CV_WINDOW_NORMAL );
+  imshow("Source", src );
+  //imshow("Source",src_gray);
+    
+  createTrackbar( " Canny thresh:", "Source", &thresh, max_thresh, thresh_callback );
+  //imshow( "Contours", src_gray );
+
+  
+  //cout<<"ll";
+  //namedWindow( "Erosion Demo", CV_WINDOW_NORMAL );
+  //namedWindow( "Dilation Demo", CV_WINDOW_NORMAL );
+  //cvMoveWindow( "Dilation Demo", src.cols, 0 );
+
+ /* /// Create Erosion Trackbar
+  createTrackbar( "Element:\n 0: Rect \n 1: Cross \n 2: Ellipse", "Erosion Demo",
+                  &erosion_elem, max_elem,
+                  Erosion );
+
+  createTrackbar( "Kernel size:\n 2n +1", "Erosion Demo",
+                  &erosion_size, max_kernel_size,
+                  Erosion );
+
+  /// Create Dilation Trackbar
+  createTrackbar( "Element:\n 0: Rect \n 1: Cross \n 2: Ellipse", "Dilation Demo",
+                  &dilation_elem, max_elem,
+                  Dilation );
+
+  createTrackbar( "Kernel size:\n 2n +1", "Dilation Demo",
+                  &dilation_size, max_kernel_size,
+                  Dilation );
+*/
+  /// Default start
+  Erosion( 0, 0 );
+  Dilation( 0, 0 );
+  thresh_callback( 0, 0 );
+
+  setMouseCallback( "Source", onMouse, NULL );
+
+  waitKey(0);
+  return(0);
+}
+
+/*
+cv::Mat img = cv::imread("something.jpg");
+cv::Mat src = cv::imread("src.jpg");
+
+// Resize src so that is has the same size as img
+cv::resize(src, src, img.size());
+*/
+
+
+
+
+
+void onMouse( int event, int x, int y, int, void* )
+{
+
+    if( event != CV_EVENT_LBUTTONDOWN )
+            return;
+
+
+    Point pt = Point(x,y);
+    std::cout<<"x="<<pt.x<<"\t y="<<pt.y<<"\t value="<<src.at<uchar>(x,y)<<"\n";
+
+}
+
+/** @function thresh_callback */
+void thresh_callback(int, void* )
+{
+  Mat canny_output;
+  vector<vector<Point> > contours;
+  vector<vector<Point> > contours1;
+  vector<Vec4i> hierarchy; 
+  /// Detect edges using canny
+  Canny( src_gray, canny_output, thresh, thresh*2, 3 );
+  /// Find contours
+  findContours( canny_output, contours, hierarchy, CV_RETR_CCOMP ,CV_CHAIN_APPROX_NONE, Point(5, 5) );
+
+  
+     /// Draw contours
+
+  Mat drawing = Mat::zeros( canny_output.size(), CV_8UC3 );
+ /* for( int i = 0; i< contours.size(); i++ )
+     {
+       Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+       drawContours( drawing, contours, i, color, 2, 8, hierarchy, 0, Point() );
+     }
+
+*/
+for ( int i=0; i<contours.size(); i++ ) {
+// look for hierarchy[i][3]!=-1, ie hole boundaries
+        if ( hierarchy[i][3] != -1 ) {
+            // random colour
+          //cout<<"ran"<<endl;
+            Scalar colour( (rand()&255), (rand()&255), (rand()&255) );
+            drawContours( drawing, contours, i, colour);
+        }
+    }
+
+for ( int i=0; i<contours.size(); i++ ) {
+
+        // look for hierarchy[i][3]!=-1, ie hole boundaries
+        if ( hierarchy[i][3] != -1 ) {
+            // random colour
+          contours1.push_back(contours[i]);
+
+            
+        }
+    }
+
+
+    //cout<<"size"<<contours1.size();
+    /*
+  int idx = 0;
+    for( ; idx >= 0; idx = hierarchy[idx][1] )
+    {
+        Scalar color( rand()&255, rand()&255, rand()&255 );
+        drawContours( drawing, contours, idx, color, CV_FILLED, 8, hierarchy );
+    }
+*/
+
+  int contours1_size =   contours1.size();
+  //cout<<"size"<<contour_size<<endl;
+ /* for(int i = 0; i < contours1_size; i++)
+  {
+    for(int j = 0; j < (contours[i].size())/10; j++)
+      cout << contours[i][j].x << "x" << contours[i][j].y << " ";
+    
+  }
+  */
+  //cout<<"nill"<<endl;
+  //if(int j=contours[contour_size-1][])
+  //contours[contour_size-1][10].x
+  //cout << contours[contour_size-2][10].x<< "x10" <<contours[contour_size-2][10].y << " ";
+
+ // for(int i =0; i<1;i++)
+  //{
+
+
+    minEnclosingCircle(contours1[0],center,radius);
+   cout<<"rauis is "<<radius<<"point is "<< center.x<<" " <<center.y<<endl;
+
+  //}
+//cout<<"xx"<<contours1[contours1_size-1][5].x<<endl;
+//cout<<"yy"<<contours1[contours1_size-1][5].y<<endl;
+int xx=contours1[contours1_size-3][5].x;
+int yy=contours1[contours1_size-3][5].y;
+//cout<<"LL"<<endl;
+
+
+
+//cout<<pointPolygonTest(contours1[contours1_size-5],Point(xx,yy), true)<<endl;
+
+//minEnclosingCircle(contours[],center1,radius1);
+LineIterator it(drawing, Point(center.x,center.y),Point(xx,yy), 8);
+//LineIterator it(drawing, Point(center.x,center.y),Point(360,194),8);
+
+LineIterator it2 = it;
+
+vector <int> carCounter(contours1.size()); // 
+
+for (int i=0;i <carCounter.size();i++)
+{    carCounter[i]=0;
+for(int nbPt = 0; nbPt < it.count; nbPt++, ++it)
+{
+    if (drawing.at<uchar>(it.pos()) != 0)
+    { 
+      cout<<"l";
+        carCounter[i]++;
+        cout<<it.pos()<<endl;
+
+        
+        
+    }
+
+}}
+
+
+//cout<<"kill"<<endl;
+int nbCar=0;
+for (int i=0;i<carCounter.size();i++)
+     if (carCounter[i]!=0)
+          nbCar++;
+
+cout<<nbCar << "cross line\n";
+  /// Show in a window
+
+
+cout << "Width : " << drawing.cols << endl;
+cout << "Height: " << drawing.rows << endl;
+  namedWindow( "Contours", CV_WINDOW_NORMAL);
+  //setMouseCallback( "Contours", onMouse, NULL);
+  imshow( "Contours", drawing );
+}
+
+
+
+/**  @function Erosion  */
+void Erosion( int, void* )
+{
+  int erosion_type;
+  if( erosion_elem == 0 ){ erosion_type = MORPH_RECT; }
+  else if( erosion_elem == 1 ){ erosion_type = MORPH_CROSS; }
+  else if( erosion_elem == 2) { erosion_type = MORPH_ELLIPSE; }
+
+  Mat element = getStructuringElement( erosion_type,
+                                       Size( 2*erosion_size + 1, 2*erosion_size+1 ),
+                                       Point( erosion_size, erosion_size ) );
+
+  /// Apply the erosion operation
+  erode( src_gray, erosion_dst, element );
+  imshow( "Erosion Demo", erosion_dst );
+}
+
+/** @function Dilation */
+void Dilation( int, void* )
+{
+  int dilation_type;
+  if( dilation_elem == 0 ){ dilation_type = MORPH_RECT; }
+  else if( dilation_elem == 1 ){ dilation_type = MORPH_CROSS; }
+  else if( dilation_elem == 2) { dilation_type = MORPH_ELLIPSE; }
+
+  Mat element = getStructuringElement( dilation_type,
+                                       Size( 2*dilation_size + 1, 2*dilation_size+1 ),
+                                       Point( dilation_size, dilation_size ) );
+  /// Apply the dilation operation
+  dilate( src_gray, dilation_dst, element );
+  imshow( "Dilation Demo", dilation_dst );
+}
+
+
+
+/*
+void load_xy_file(const std::string& filename, std::vector<Point>& points)
+{
+  std::ifstream ifs(filename.c_str());
+  Point point;
+  while (ifs >> point)
+    points.push_back(point);
+  ifs.close();
+}
+void indexed_output(Otr_2& otr2)
+{  
+  std::cout << "(-------------Off output---------- )" << std::endl;
+  std::vector<Point> points;
+  std::vector<std::size_t> isolated_vertices;
+  std::vector<std::pair<std::size_t,std::size_t> > edges;
+  otr2.indexed_output(
+      std::back_inserter(points),
+      std::back_inserter(isolated_vertices),
+      std::back_inserter(edges));
+  std::cout << "OFF " << points.size() << " 0 " << edges.size()  << std::endl;
+  // points
+  std::vector<Point>::iterator pit;
+  for (pit = points.begin(); pit != points.end(); pit++) 
+    std::cout << *pit << std::endl;
+  // isolated vertices
+  std::vector<std::size_t>::iterator vit;
+  for (vit = isolated_vertices.begin(); vit != isolated_vertices.end(); vit++)
+    std::cout << "1 "  << *vit << std::endl;
+  // edges
+  std::vector<std::pair<std::size_t, std::size_t> >::iterator eit;
+  for (eit = edges.begin(); eit != edges.end(); eit++)
+    std::cout << "2 "  << eit->first << " " << eit->second << std::endl;
+}
+/*
+  std::vector<Point> points;
+  load_xy_file("data/stair-noise00.xy", points);
+  Otr_2 otr2(points);
+  otr2.run(100); // 100 steps
+  indexed_output(otr2);
+  return 0;
+*/
